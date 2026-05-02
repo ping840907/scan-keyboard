@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Scan Keyboard</string>
+    <string name="enable_keyboard">Enable Keyboard</string>
+    <string name="select_keyboard">Select Keyboard</string>
+    <string name="permission_rationale">Camera permission is required to scan barcodes.</string>
+    <string name="grant_permission">Grant Permission</string>
+    <string name="permission_granted">Permission Granted</string>
+    <string name="setup_complete">Setup Complete! You can now use the keyboard.</string>
+</resources>
