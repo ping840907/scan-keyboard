@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="300dp"
+    android:background="@color/keyboard_bg">
+
+    <!-- Keyboard Keys Group -->
+    <androidx.constraintlayout.widget.Group
+        android:id="@+id/group_keys"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:constraint_referenced_ids="btn_scan,btn_delete,btn_enter" />
+
+    <!-- Scan Button (Center) -->
+    <ImageButton
+        android:id="@+id/btn_scan"
+        android:layout_width="96dp"
+        android:layout_height="96dp"
+        android:background="@drawable/key_background_circle"
+        android:contentDescription="Scan"
+        android:scaleType="fitCenter"
+        android:padding="24dp"
+        android:src="@drawable/ic_scan"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- Enter Button (Bottom Right) -->
+    <ImageButton
+        android:id="@+id/btn_enter"
+        android:layout_width="64dp"
+        android:layout_height="56dp"
+        android:layout_margin="8dp"
+        android:background="@drawable/key_background"
+        android:contentDescription="Enter"
+        android:src="@drawable/ic_enter"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Delete Button (Above Enter) -->
+    <ImageButton
+        android:id="@+id/btn_delete"
+        android:layout_width="64dp"
+        android:layout_height="56dp"
+        android:layout_margin="8dp"
+        android:layout_marginBottom="8dp"
+        android:background="@drawable/key_background"
+        android:contentDescription="Delete"
+        android:src="@drawable/ic_backspace"
+        app:layout_constraintBottom_toTopOf="@+id/btn_enter"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Camera Preview (Initially Hidden) -->
+    <androidx.camera.view.PreviewView
+        android:id="@+id/view_finder"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- Close Camera Button -->
+    <ImageButton
+        android:id="@+id/btn_close_camera"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_margin="16dp"
+        android:background="@android:color/transparent"
+        android:contentDescription="Close Camera"
+        android:src="@drawable/ic_close"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>
