@@ -1,0 +1,14 @@
+[
+    {
+        "merged": "com.example.scankeyboard.app-mergeReleaseResources-3:/layout/activity_color_picker.xml",
+        "source": "com.example.scankeyboard.app-main-5:/layout/activity_color_picker.xml"
+    },
+    {
+        "merged": "com.example.scankeyboard.app-mergeReleaseResources-3:/layout/activity_main.xml",
+        "source": "com.example.scankeyboard.app-main-5:/layout/activity_main.xml"
+    },
+    {
+        "merged": "com.example.scankeyboard.app-mergeReleaseResources-3:/layout/keyboard_view.xml",
+        "source": "com.example.scankeyboard.app-main-5:/layout/keyboard_view.xml"
+    }
+]

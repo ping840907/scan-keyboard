@@ -11,6 +11,7 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.InputMethodService
 import android.widget.ImageButton
+import android.content.Intent
 import android.widget.Toast
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -38,6 +39,7 @@ class ScanKeyboardService : InputMethodService(), LifecycleOwner {
     // UI Elements
     private lateinit var viewFinder: PreviewView
     private lateinit var btnScan: ImageButton
+    private lateinit var btnPickColor: ImageButton
     private lateinit var btnDelete: ImageButton
     private lateinit var btnEnter: ImageButton
     private lateinit var btnCloseCamera: ImageButton
@@ -59,6 +61,7 @@ class ScanKeyboardService : InputMethodService(), LifecycleOwner {
         
         viewFinder = view.findViewById(R.id.view_finder)
         btnScan = view.findViewById(R.id.btn_scan)
+        btnPickColor = view.findViewById(R.id.btn_pick_color)
         btnDelete = view.findViewById(R.id.btn_delete)
         btnEnter = view.findViewById(R.id.btn_enter)
         btnCloseCamera = view.findViewById(R.id.btn_close_camera)
@@ -70,6 +73,12 @@ class ScanKeyboardService : InputMethodService(), LifecycleOwner {
             } else {
                 Toast.makeText(this, "Camera permission required", Toast.LENGTH_SHORT).show()
             }
+        }
+
+        btnPickColor.setOnClickListener {
+            val intent = Intent(this, ColorPickerActivity::class.java)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
         }
 
         btnDelete.setOnClickListener {
@@ -92,6 +101,11 @@ class ScanKeyboardService : InputMethodService(), LifecycleOwner {
         super.onStartInputView(info, restarting)
         lifecycleRegistry.currentState = Lifecycle.State.STARTED
         lifecycleRegistry.currentState = Lifecycle.State.RESUMED
+
+        KeyboardSharedState.pendingText?.let { text ->
+            currentInputConnection?.commitText(text, 1)
+            KeyboardSharedState.pendingText = null
+        }
     }
 
     override fun onFinishInputView(finishingInput: Boolean) {

@@ -1,0 +1,54 @@
+[
+    {
+        "merged": "com.example.scankeyboard.app-merged_res-4:/xml_backup_rules.xml.flat",
+        "source": "com.example.scankeyboard.app-main-5:/xml/backup_rules.xml"
+    },
+    {
+        "merged": "com.example.scankeyboard.app-merged_res-4:/layout_activity_main.xml.flat",
+        "source": "com.example.scankeyboard.app-main-5:/layout/activity_main.xml"
+    },
+    {
+        "merged": "com.example.scankeyboard.app-merged_res-4:/xml_method.xml.flat",
+        "source": "com.example.scankeyboard.app-main-5:/xml/method.xml"
+    },
+    {
+        "merged": "com.example.scankeyboard.app-merged_res-4:/layout_keyboard_view.xml.flat",
+        "source": "com.example.scankeyboard.app-main-5:/layout/keyboard_view.xml"
+    },
+    {
+        "merged": "com.example.scankeyboard.app-merged_res-4:/drawable_key_background_circle.xml.flat",
+        "source": "com.example.scankeyboard.app-main-5:/drawable/key_background_circle.xml"
+    },
+    {
+        "merged": "com.example.scankeyboard.app-merged_res-4:/drawable_ic_scan.xml.flat",
+        "source": "com.example.scankeyboard.app-main-5:/drawable/ic_scan.xml"
+    },
+    {
+        "merged": "com.example.scankeyboard.app-merged_res-4:/drawable_ic_enter.xml.flat",
+        "source": "com.example.scankeyboard.app-main-5:/drawable/ic_enter.xml"
+    },
+    {
+        "merged": "com.example.scankeyboard.app-merged_res-4:/drawable_ic_backspace.xml.flat",
+        "source": "com.example.scankeyboard.app-main-5:/drawable/ic_backspace.xml"
+    },
+    {
+        "merged": "com.example.scankeyboard.app-merged_res-4:/layout_activity_color_picker.xml.flat",
+        "source": "com.example.scankeyboard.app-main-5:/layout/activity_color_picker.xml"
+    },
+    {
+        "merged": "com.example.scankeyboard.app-merged_res-4:/drawable_ic_color_picker.xml.flat",
+        "source": "com.example.scankeyboard.app-main-5:/drawable/ic_color_picker.xml"
+    },
+    {
+        "merged": "com.example.scankeyboard.app-merged_res-4:/drawable_ic_close.xml.flat",
+        "source": "com.example.scankeyboard.app-main-5:/drawable/ic_close.xml"
+    },
+    {
+        "merged": "com.example.scankeyboard.app-merged_res-4:/xml_data_extraction_rules.xml.flat",
+        "source": "com.example.scankeyboard.app-main-5:/xml/data_extraction_rules.xml"
+    },
+    {
+        "merged": "com.example.scankeyboard.app-merged_res-4:/drawable_key_background.xml.flat",
+        "source": "com.example.scankeyboard.app-main-5:/drawable/key_background.xml"
+    }
+]
