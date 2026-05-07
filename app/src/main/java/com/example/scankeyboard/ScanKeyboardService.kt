@@ -9,8 +9,9 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.view.KeyEvent
 import android.view.View
-import android.view.inputmethod.InputMethodService
+import android.inputmethodservice.InputMethodService
 import android.widget.ImageButton
+import android.widget.SeekBar
 import android.widget.Toast
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -22,7 +23,10 @@ import androidx.constraintlayout.widget.Group
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
+import androidx.camera.core.Camera
 import androidx.lifecycle.LifecycleRegistry
+import android.view.ScaleGestureDetector
+import android.view.MotionEvent
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
@@ -41,11 +45,17 @@ class ScanKeyboardService : InputMethodService(), LifecycleOwner {
     private lateinit var btnDelete: ImageButton
     private lateinit var btnEnter: ImageButton
     private lateinit var btnCloseCamera: ImageButton
+    private lateinit var btnFlash: ImageButton
+    private lateinit var btnAutoEnter: ImageButton
+    private lateinit var sliderZoom: SeekBar
     private lateinit var groupKeys: Group
 
     private var isCameraActive = false
     @Volatile
     private var isProcessingBarcode = false
+    private var camera: Camera? = null
+    private var isFlashOn = false
+    private var isAutoEnterEnabled = true
 
     override fun onCreate() {
         super.onCreate()
@@ -62,6 +72,9 @@ class ScanKeyboardService : InputMethodService(), LifecycleOwner {
         btnDelete = view.findViewById(R.id.btn_delete)
         btnEnter = view.findViewById(R.id.btn_enter)
         btnCloseCamera = view.findViewById(R.id.btn_close_camera)
+        btnFlash = view.findViewById(R.id.btn_flash)
+        btnAutoEnter = view.findViewById(R.id.btn_auto_enter)
+        sliderZoom = view.findViewById(R.id.slider_zoom)
         groupKeys = view.findViewById(R.id.group_keys)
 
         btnScan.setOnClickListener {
@@ -81,11 +94,72 @@ class ScanKeyboardService : InputMethodService(), LifecycleOwner {
             currentInputConnection?.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
         }
 
+        btnAutoEnter.setOnClickListener {
+            isAutoEnterEnabled = !isAutoEnterEnabled
+            btnAutoEnter.setImageResource(if (isAutoEnterEnabled) R.drawable.ic_auto_enter_on else R.drawable.ic_auto_enter_off)
+        }
+
         btnCloseCamera.setOnClickListener {
             stopCameraMode()
         }
 
+        btnFlash.setOnClickListener {
+            toggleFlash()
+        }
+
+        setupZoom()
+
         return view
+    }
+
+    @SuppressLint("ClickableViewAccessibility")
+    private fun setupZoom() {
+        // Pinch-to-zoom setup
+        val scaleGestureDetector = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScale(detector: ScaleGestureDetector): Boolean {
+                val zoomState = camera?.cameraInfo?.zoomState?.value ?: return false
+                val currentZoomRatio = zoomState.zoomRatio
+                val delta = detector.scaleFactor
+                val newZoomRatio = currentZoomRatio * delta
+                camera?.cameraControl?.setZoomRatio(newZoomRatio)
+
+                // Update slider linearly based on zoom ratio
+                val minZoom = zoomState.minZoomRatio
+                val maxZoom = zoomState.maxZoomRatio
+                if (maxZoom > minZoom) {
+                   val progress = ((newZoomRatio - minZoom) / (maxZoom - minZoom) * 100).toInt()
+                   sliderZoom.progress = progress.coerceIn(0, 100)
+                }
+
+                return true
+            }
+        })
+
+        viewFinder.setOnTouchListener { _, event ->
+            scaleGestureDetector.onTouchEvent(event)
+            true
+        }
+
+        // SeekBar zoom setup
+        sliderZoom.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                if (fromUser) {
+                    camera?.cameraControl?.setLinearZoom(progress / 100f)
+                }
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+    }
+
+    private fun toggleFlash() {
+        camera?.let {
+            if (it.cameraInfo.hasFlashUnit()) {
+                isFlashOn = !isFlashOn
+                it.cameraControl.enableTorch(isFlashOn)
+                btnFlash.setImageResource(if (isFlashOn) R.drawable.ic_flash_on else R.drawable.ic_flash_off)
+            }
+        }
     }
 
     override fun onStartInputView(info: android.view.inputmethod.EditorInfo?, restarting: Boolean) {
@@ -118,9 +192,14 @@ class ScanKeyboardService : InputMethodService(), LifecycleOwner {
     private fun startCameraMode() {
         isCameraActive = true
         isProcessingBarcode = false
+        isFlashOn = false
+        btnFlash.setImageResource(R.drawable.ic_flash_off)
         groupKeys.visibility = View.GONE
         viewFinder.visibility = View.VISIBLE
         btnCloseCamera.visibility = View.VISIBLE
+        btnFlash.visibility = View.VISIBLE
+        sliderZoom.visibility = View.VISIBLE
+        sliderZoom.progress = 0
         startCamera()
     }
 
@@ -128,8 +207,11 @@ class ScanKeyboardService : InputMethodService(), LifecycleOwner {
         isCameraActive = false
         viewFinder.visibility = View.GONE
         btnCloseCamera.visibility = View.GONE
+        btnFlash.visibility = View.GONE
+        sliderZoom.visibility = View.GONE
         groupKeys.visibility = View.VISIBLE
         cameraProvider?.unbindAll()
+        camera = null
     }
 
     private fun startCamera() {
@@ -163,7 +245,7 @@ class ScanKeyboardService : InputMethodService(), LifecycleOwner {
 
             try {
                 cameraProvider?.unbindAll()
-                cameraProvider?.bindToLifecycle(
+                camera = cameraProvider?.bindToLifecycle(
                     this, cameraSelector, preview, imageAnalyzer
                 )
             } catch (exc: Exception) {
@@ -178,6 +260,10 @@ class ScanKeyboardService : InputMethodService(), LifecycleOwner {
             // Stop scanning immediately to prevent duplicate inputs
             stopCameraMode()
             currentInputConnection?.commitText(result, 1)
+            if (isAutoEnterEnabled) {
+                currentInputConnection?.sendKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER))
+                currentInputConnection?.sendKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER))
+            }
             triggerVibration()
         }
     }

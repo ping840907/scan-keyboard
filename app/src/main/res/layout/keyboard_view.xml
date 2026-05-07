@@ -10,7 +10,20 @@
         android:id="@+id/group_keys"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        app:constraint_referenced_ids="btn_scan,btn_delete,btn_enter" />
+        app:constraint_referenced_ids="btn_scan,btn_delete,btn_enter,btn_auto_enter" />
+
+    <!-- Auto Enter Toggle Button (Above Delete) -->
+    <ImageButton
+        android:id="@+id/btn_auto_enter"
+        android:layout_width="64dp"
+        android:layout_height="56dp"
+        android:layout_margin="8dp"
+        android:layout_marginBottom="8dp"
+        android:background="@drawable/key_background"
+        android:contentDescription="Toggle Auto Enter"
+        android:src="@drawable/ic_auto_enter_on"
+        app:layout_constraintBottom_toTopOf="@+id/btn_delete"
+        app:layout_constraintEnd_toEndOf="parent" />
 
     <!-- Scan Button (Center) -->
     <ImageButton
@@ -62,6 +75,33 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- Flash Toggle Button -->
+    <ImageButton
+        android:id="@+id/btn_flash"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_margin="16dp"
+        android:layout_marginEnd="16dp"
+        android:background="@android:color/transparent"
+        android:contentDescription="Toggle Flash"
+        android:src="@drawable/ic_flash_off"
+        android:visibility="gone"
+        app:layout_constraintEnd_toStartOf="@+id/btn_close_camera"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- Zoom Slider (SeekBar) -->
+    <SeekBar
+        android:id="@+id/slider_zoom"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        android:visibility="gone"
+        android:max="100"
+        android:progress="0"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/btn_scan" />
 
     <!-- Close Camera Button -->
     <ImageButton
