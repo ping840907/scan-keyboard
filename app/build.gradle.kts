@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.example.scankeyboard"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.example.scankeyboard"
@@ -47,14 +47,16 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-service:2.6.2")
 
     // CameraX
-    val cameraxVersion = "1.3.0"
+    val cameraxVersion = "1.4.1"
     implementation("androidx.camera:camera-core:$cameraxVersion")
     implementation("androidx.camera:camera-camera2:$cameraxVersion")
     implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
     implementation("androidx.camera:camera-view:$cameraxVersion")
 
-    // ML Kit Barcode Scanning
-    implementation("com.google.mlkit:barcode-scanning:17.2.0")
+    // ZXing C++ (High accuracy native barcode scanner from Binary Eye)
+    implementation(files("libs/zxingcpp-release.aar"))
+    // Fallback/remote dependency if needed
+    // implementation("com.github.markusfisch:zxing-cpp:v3.1.1.1")
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")

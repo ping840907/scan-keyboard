@@ -4,41 +4,54 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Rect
+import android.inputmethodservice.InputMethodService
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.view.KeyEvent
+import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import android.view.View
-import android.inputmethodservice.InputMethodService
+import android.view.ViewConfiguration
 import android.widget.ImageButton
 import android.widget.SeekBar
 import android.widget.Toast
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.constraintlayout.widget.Group
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
-import androidx.camera.core.Camera
 import androidx.lifecycle.LifecycleRegistry
-import android.view.ScaleGestureDetector
-import android.view.MotionEvent
-import com.google.mlkit.vision.barcode.BarcodeScanning
-import com.google.mlkit.vision.barcode.common.Barcode
-import com.google.mlkit.vision.common.InputImage
+import com.example.scankeyboard.camera.FrameMetrics
+import com.example.scankeyboard.camera.setCovered
+import com.example.scankeyboard.camera.setFrameRoi
+import de.markusfisch.android.zxingcpp.ZxingCpp
+import de.markusfisch.android.zxingcpp.ZxingCpp.Binarizer
+import de.markusfisch.android.zxingcpp.ZxingCpp.ReaderOptions
+import de.markusfisch.android.zxingcpp.ZxingCpp.TextMode
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import kotlin.math.hypot
 
 class ScanKeyboardService : InputMethodService(), LifecycleOwner {
 
     private lateinit var lifecycleRegistry: LifecycleRegistry
     private lateinit var cameraExecutor: ExecutorService
     private var cameraProvider: ProcessCameraProvider? = null
-    
+    private var imageAnalysis: ImageAnalysis? = null
+    private var preview: Preview? = null
+
     // UI Elements
     private lateinit var viewFinder: PreviewView
     private lateinit var btnScan: ImageButton
@@ -56,6 +69,17 @@ class ScanKeyboardService : InputMethodService(), LifecycleOwner {
     private var camera: Camera? = null
     private var isFlashOn = false
     private var isAutoEnterEnabled = true
+    private var useLocalAverage = false
+
+    // Reader options tuned for maximum accuracy and versatility (Binary Eye technique)
+    private val readerOptions = ReaderOptions(
+        tryHarder = true,
+        tryRotate = true,
+        tryInvert = true,
+        tryDownscale = true,
+        maxNumberOfSymbols = 1,
+        textMode = TextMode.PLAIN
+    )
 
     override fun onCreate() {
         super.onCreate()
@@ -66,7 +90,7 @@ class ScanKeyboardService : InputMethodService(), LifecycleOwner {
 
     override fun onCreateInputView(): View {
         val view = layoutInflater.inflate(R.layout.keyboard_view, null)
-        
+
         viewFinder = view.findViewById(R.id.view_finder)
         btnScan = view.findViewById(R.id.btn_scan)
         btnDelete = view.findViewById(R.id.btn_delete)
@@ -96,7 +120,9 @@ class ScanKeyboardService : InputMethodService(), LifecycleOwner {
 
         btnAutoEnter.setOnClickListener {
             isAutoEnterEnabled = !isAutoEnterEnabled
-            btnAutoEnter.setImageResource(if (isAutoEnterEnabled) R.drawable.ic_auto_enter_on else R.drawable.ic_auto_enter_off)
+            btnAutoEnter.setImageResource(
+                if (isAutoEnterEnabled) R.drawable.ic_auto_enter_on else R.drawable.ic_auto_enter_off
+            )
         }
 
         btnCloseCamera.setOnClickListener {
@@ -107,36 +133,67 @@ class ScanKeyboardService : InputMethodService(), LifecycleOwner {
             toggleFlash()
         }
 
-        setupZoom()
+        setupTouchAndZoom()
 
         return view
     }
 
     @SuppressLint("ClickableViewAccessibility")
-    private fun setupZoom() {
+    private fun setupTouchAndZoom() {
         // Pinch-to-zoom setup
-        val scaleGestureDetector = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-            override fun onScale(detector: ScaleGestureDetector): Boolean {
-                val zoomState = camera?.cameraInfo?.zoomState?.value ?: return false
-                val currentZoomRatio = zoomState.zoomRatio
-                val delta = detector.scaleFactor
-                val newZoomRatio = currentZoomRatio * delta
-                camera?.cameraControl?.setZoomRatio(newZoomRatio)
+        val scaleGestureDetector = ScaleGestureDetector(
+            this,
+            object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+                override fun onScale(detector: ScaleGestureDetector): Boolean {
+                    val zoomState = camera?.cameraInfo?.zoomState?.value ?: return false
+                    val currentZoomRatio = zoomState.zoomRatio
+                    val delta = detector.scaleFactor
+                    val newZoomRatio = currentZoomRatio * delta
+                    camera?.cameraControl?.setZoomRatio(newZoomRatio)
 
-                // Update slider linearly based on zoom ratio
-                val minZoom = zoomState.minZoomRatio
-                val maxZoom = zoomState.maxZoomRatio
-                if (maxZoom > minZoom) {
-                   val progress = ((newZoomRatio - minZoom) / (maxZoom - minZoom) * 100).toInt()
-                   sliderZoom.progress = progress.coerceIn(0, 100)
+                    val minZoom = zoomState.minZoomRatio
+                    val maxZoom = zoomState.maxZoomRatio
+                    if (maxZoom > minZoom) {
+                        val progress = ((newZoomRatio - minZoom) / (maxZoom - minZoom) * 100).toInt()
+                        sliderZoom.progress = progress.coerceIn(0, 100)
+                    }
+                    return true
                 }
-
-                return true
             }
-        })
+        )
 
+        var downX = 0f
+        var downY = 0f
+        var hasMoved = false
+        val touchSlop = ViewConfiguration.get(this).scaledTouchSlop
+
+        // Tap-to-focus and pinch zoom combination
         viewFinder.setOnTouchListener { _, event ->
             scaleGestureDetector.onTouchEvent(event)
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    downX = event.x
+                    downY = event.y
+                    hasMoved = false
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (hypot((event.x - downX).toDouble(), (event.y - downY).toDouble()) > touchSlop) {
+                        hasMoved = true
+                    }
+                }
+                MotionEvent.ACTION_UP -> {
+                    if (!hasMoved && !scaleGestureDetector.isInProgress) {
+                        camera?.cameraControl?.let { control ->
+                            try {
+                                val factory = viewFinder.meteringPointFactory
+                                val point = factory.createPoint(event.x, event.y)
+                                val action = FocusMeteringAction.Builder(point).build()
+                                control.startFocusAndMetering(action)
+                            } catch (_: Exception) {}
+                        }
+                    }
+                }
+            }
             true
         }
 
@@ -210,6 +267,10 @@ class ScanKeyboardService : InputMethodService(), LifecycleOwner {
         btnFlash.visibility = View.GONE
         sliderZoom.visibility = View.GONE
         groupKeys.visibility = View.VISIBLE
+        imageAnalysis?.clearAnalyzer()
+        imageAnalysis = null
+        preview?.setSurfaceProvider(null)
+        preview = null
         cameraProvider?.unbindAll()
         camera = null
     }
@@ -220,25 +281,32 @@ class ScanKeyboardService : InputMethodService(), LifecycleOwner {
         cameraProviderFuture.addListener({
             cameraProvider = cameraProviderFuture.get()
 
-            val preview = Preview.Builder().build().also {
-                it.setSurfaceProvider(viewFinder.surfaceProvider)
-            }
-
-            val imageAnalyzer = ImageAnalysis.Builder()
-                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+            // High-resolution selector matching Binary Eye's strategy
+            val resolutionSelector = ResolutionSelector.Builder()
+                .setResolutionStrategy(
+                    ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY
+                )
+                .setAspectRatioStrategy(
+                    AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY
+                )
+                .setAllowedResolutionMode(
+                    ResolutionSelector.PREFER_HIGHER_RESOLUTION_OVER_CAPTURE_RATE
+                )
                 .build()
-                .also {
-                    it.setAnalyzer(cameraExecutor, BarcodeAnalyzer { barcodes ->
-                        if (barcodes.isNotEmpty() && !isProcessingBarcode) {
-                             isProcessingBarcode = true
-                             val value = barcodes[0].rawValue
-                             if (value != null) {
-                                 onBarcodeDetected(value)
-                             } else {
-                                 isProcessingBarcode = false
-                             }
-                        }
-                    })
+
+            val previewUseCase = Preview.Builder()
+                .setResolutionSelector(resolutionSelector)
+                .build().also {
+                    it.setSurfaceProvider(viewFinder.surfaceProvider)
+                }
+
+            val analysisUseCase = ImageAnalysis.Builder()
+                .setResolutionSelector(resolutionSelector)
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                .build().also {
+                    it.setAnalyzer(cameraExecutor) { imageProxy ->
+                        analyzeImage(imageProxy)
+                    }
                 }
 
             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
@@ -246,13 +314,79 @@ class ScanKeyboardService : InputMethodService(), LifecycleOwner {
             try {
                 cameraProvider?.unbindAll()
                 camera = cameraProvider?.bindToLifecycle(
-                    this, cameraSelector, preview, imageAnalyzer
+                    this, cameraSelector, previewUseCase, analysisUseCase
                 )
-            } catch (exc: Exception) {
+                this.preview = previewUseCase
+                this.imageAnalysis = analysisUseCase
+            } catch (_: Exception) {
                 // Handle errors
             }
 
         }, ContextCompat.getMainExecutor(this))
+    }
+
+    private fun analyzeImage(image: ImageProxy) {
+        try {
+            if (!isCameraActive || isProcessingBarcode) {
+                return
+            }
+
+            val frameMetrics = FrameMetrics(
+                image.width,
+                image.height,
+                image.imageInfo.rotationDegrees
+            )
+
+            val viewWidth = viewFinder.width
+            val viewHeight = viewFinder.height
+
+            // Calculate precise ROI in frame coordinates for current viewfinder
+            val frameRoi = if (viewWidth > 0 && viewHeight > 0) {
+                val previewRect = Rect().apply {
+                    setCovered(viewWidth, viewHeight, frameMetrics)
+                }
+                val viewRoi = Rect(0, 0, viewWidth, viewHeight)
+                Rect().apply {
+                    setFrameRoi(frameMetrics, previewRect, viewRoi)
+                }
+            } else {
+                Rect(0, 0, image.width, image.height)
+            }
+
+            if (frameRoi.width() < 1 || frameRoi.height() < 1) {
+                return
+            }
+
+            // Dual-Binarizer Alternation: Toggle between LOCAL_AVERAGE and GLOBAL_HISTOGRAM
+            useLocalAverage = useLocalAverage xor true
+            readerOptions.binarizer = if (useLocalAverage) {
+                Binarizer.LOCAL_AVERAGE
+            } else {
+                Binarizer.GLOBAL_HISTOGRAM
+            }
+
+            // Zero-copy Y-plane luminance buffer read via native C++ ZXing
+            val yPlane = image.planes[0]
+            val results = ZxingCpp.readYBuffer(
+                yPlane.buffer,
+                yPlane.rowStride,
+                frameRoi,
+                frameMetrics.orientation,
+                readerOptions
+            )
+
+            results?.firstOrNull()?.let { result ->
+                val text = result.text
+                if (!text.isNullOrEmpty() && !isProcessingBarcode) {
+                    isProcessingBarcode = true
+                    onBarcodeDetected(text)
+                }
+            }
+        } catch (_: Exception) {
+            // Handle exceptions
+        } finally {
+            image.close()
+        }
     }
 
     private fun onBarcodeDetected(result: String) {
@@ -275,29 +409,6 @@ class ScanKeyboardService : InputMethodService(), LifecycleOwner {
         } else {
             @Suppress("DEPRECATION")
             vibrator.vibrate(100)
-        }
-    }
-
-    private class BarcodeAnalyzer(private val listener: (List<Barcode>) -> Unit) : ImageAnalysis.Analyzer {
-        @SuppressLint("UnsafeOptInUsageError")
-        override fun analyze(imageProxy: ImageProxy) {
-            val mediaImage = imageProxy.image
-            if (mediaImage != null) {
-                val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
-                val scanner = BarcodeScanning.getClient()
-                
-                scanner.process(image)
-                    .addOnSuccessListener { barcodes ->
-                        if (barcodes.isNotEmpty()) {
-                            listener(barcodes)
-                        }
-                    }
-                    .addOnCompleteListener {
-                        imageProxy.close()
-                    }
-            } else {
-                imageProxy.close()
-            }
         }
     }
 }
