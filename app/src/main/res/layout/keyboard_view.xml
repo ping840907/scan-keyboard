@@ -11,7 +11,19 @@
         android:id="@+id/group_keys"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        app:constraint_referenced_ids="btn_scan,btn_delete,btn_enter,btn_auto_enter" />
+        app:constraint_referenced_ids="btn_scan,btn_delete,btn_enter,btn_auto_enter,btn_switch_keyboard" />
+
+    <!-- Switch Keyboard Button (Bottom Left) -->
+    <ImageButton
+        android:id="@+id/btn_switch_keyboard"
+        android:layout_width="64dp"
+        android:layout_height="56dp"
+        android:layout_margin="8dp"
+        android:background="@drawable/key_background"
+        android:contentDescription="Switch Keyboard"
+        android:src="@drawable/ic_switch_keyboard"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
 
     <!-- Auto Enter Toggle Button (Above Delete) -->
     <ImageButton

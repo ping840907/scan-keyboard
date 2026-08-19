@@ -17,6 +17,7 @@ import android.view.ScaleGestureDetector
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
 import android.widget.ImageButton
 import android.widget.SeekBar
 import android.widget.Toast
@@ -60,6 +61,7 @@ class ScanKeyboardService : InputMethodService(), LifecycleOwner {
     private lateinit var btnScan: ImageButton
     private lateinit var btnDelete: ImageButton
     private lateinit var btnEnter: ImageButton
+    private lateinit var btnSwitchKeyboard: ImageButton
     private lateinit var btnCloseCamera: ImageButton
     private lateinit var btnFlash: ImageButton
     private lateinit var btnAutoEnter: ImageButton
@@ -113,11 +115,17 @@ class ScanKeyboardService : InputMethodService(), LifecycleOwner {
         btnScan = view.findViewById(R.id.btn_scan)
         btnDelete = view.findViewById(R.id.btn_delete)
         btnEnter = view.findViewById(R.id.btn_enter)
+        btnSwitchKeyboard = view.findViewById(R.id.btn_switch_keyboard)
         btnCloseCamera = view.findViewById(R.id.btn_close_camera)
         btnFlash = view.findViewById(R.id.btn_flash)
         btnAutoEnter = view.findViewById(R.id.btn_auto_enter)
         sliderZoom = view.findViewById(R.id.slider_zoom)
         groupKeys = view.findViewById(R.id.group_keys)
+
+        btnSwitchKeyboard.setOnClickListener {
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+            imm?.showInputMethodPicker()
+        }
 
         btnScan.setOnClickListener {
             if (checkCameraPermission()) {
