@@ -7,6 +7,8 @@ import android.content.pm.PackageManager
 import android.graphics.Rect
 import android.inputmethodservice.InputMethodService
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.view.KeyEvent
@@ -14,6 +16,7 @@ import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
 import android.view.ViewConfiguration
+import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.SeekBar
 import android.widget.Toast
@@ -71,6 +74,15 @@ class ScanKeyboardService : InputMethodService(), LifecycleOwner {
     private var isAutoEnterEnabled = true
     private var useLocalAverage = false
 
+    // Backspace continuous delete handler
+    private val deleteHandler = Handler(Looper.getMainLooper())
+    private val deleteRunnable = object : Runnable {
+        override fun run() {
+            handleDelete()
+            deleteHandler.postDelayed(this, REPEAT_INTERVAL_MS)
+        }
+    }
+
     // Reader options tuned for maximum accuracy and versatility (Binary Eye technique)
     private val readerOptions = ReaderOptions(
         tryHarder = true,
@@ -88,8 +100,14 @@ class ScanKeyboardService : InputMethodService(), LifecycleOwner {
         cameraExecutor = Executors.newSingleThreadExecutor()
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     override fun onCreateInputView(): View {
         val view = layoutInflater.inflate(R.layout.keyboard_view, null)
+
+        // Ensure minimum and layout height matches keyboard height (300dp) so it doesn't collapse in camera mode
+        val heightInPx = (300 * resources.displayMetrics.density).toInt()
+        view.minimumHeight = heightInPx
+        view.layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, heightInPx)
 
         viewFinder = view.findViewById(R.id.view_finder)
         btnScan = view.findViewById(R.id.btn_scan)
@@ -109,8 +127,30 @@ class ScanKeyboardService : InputMethodService(), LifecycleOwner {
             }
         }
 
-        btnDelete.setOnClickListener {
-            currentInputConnection?.deleteSurroundingText(1, 0)
+        // Setup continuous delete and selected text deletion
+        btnDelete.setOnTouchListener { v, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    v.isPressed = true
+                    handleDelete()
+                    deleteHandler.removeCallbacks(deleteRunnable)
+                    deleteHandler.postDelayed(deleteRunnable, INITIAL_DELAY_MS)
+                    true
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (event.x < 0 || event.x > v.width || event.y < 0 || event.y > v.height) {
+                        v.isPressed = false
+                        deleteHandler.removeCallbacks(deleteRunnable)
+                    }
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    v.isPressed = false
+                    deleteHandler.removeCallbacks(deleteRunnable)
+                    true
+                }
+                else -> false
+            }
         }
 
         btnEnter.setOnClickListener {
@@ -136,6 +176,18 @@ class ScanKeyboardService : InputMethodService(), LifecycleOwner {
         setupTouchAndZoom()
 
         return view
+    }
+
+    private fun handleDelete() {
+        val ic = currentInputConnection ?: return
+        val selectedText = ic.getSelectedText(0)
+        if (!selectedText.isNullOrEmpty()) {
+            // Delete the highlighted / selected text
+            ic.commitText("", 1)
+        } else {
+            // Send standard DEL key event
+            sendDownUpKeyEvents(KeyEvent.KEYCODE_DEL)
+        }
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -227,6 +279,7 @@ class ScanKeyboardService : InputMethodService(), LifecycleOwner {
 
     override fun onFinishInputView(finishingInput: Boolean) {
         super.onFinishInputView(finishingInput)
+        deleteHandler.removeCallbacks(deleteRunnable)
         if (isCameraActive) {
             stopCameraMode()
         }
@@ -235,6 +288,7 @@ class ScanKeyboardService : InputMethodService(), LifecycleOwner {
 
     override fun onDestroy() {
         super.onDestroy()
+        deleteHandler.removeCallbacks(deleteRunnable)
         lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
         cameraExecutor.shutdown()
     }
@@ -410,5 +464,10 @@ class ScanKeyboardService : InputMethodService(), LifecycleOwner {
             @Suppress("DEPRECATION")
             vibrator.vibrate(100)
         }
+    }
+
+    companion object {
+        private const val INITIAL_DELAY_MS = 400L
+        private const val REPEAT_INTERVAL_MS = 50L
     }
 }
